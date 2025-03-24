@@ -37,7 +37,9 @@
 `define	XORI	6'h0e	// OP field
 `define	LUI	6'h0f	// OP field
 `define	LW	6'h23	// OP field
-`define	SW	6'h2b	// OP field 
+`define	SW	6'h2b	// OP field
+`define LB      6'h20   // OP field, CHARLES C
+`define LBU     6'h24   // OP field, CHARLES C
 
 `define	MUL	6'h01	// FUNCT field, PAUL G, MUL
 `define	ADDU	6'h21	// FUNCT field
@@ -65,6 +67,7 @@ always @(ir) begin
 		endcase
     `BEQ,
     `BNE, // PAUL G, BNE
+    `LB, `LBU, // CHARLES C
     `ADDIU, `SLTIU,
     `ANDI, `ORI, `XORI,
     `LUI, `LW, `SW:	xop = ir `OP;
@@ -88,6 +91,7 @@ always @(xop or top or bot) begin
   case (xop)
     `MUL: res = (top * bot); // PAUL G, MUL
     `LW, `SW,
+    `LB, `LBU,  // CHARLES C
     `ADDIU, `F(`ADDU):	res = (top + bot);
     `SLTIU, `F(`SLTU):	res = (top < bot);
     `ANDI, `F(`AND):	res = (top & bot);
@@ -130,20 +134,43 @@ initial begin // PAUL G, Note : I believe this is just part of the test-bench an
     `IPACK(m[12], `LW, 2, 1, 1023)
     `IPACK(m[13], `SW, 0, 2, 1024)
     `IPACK(m[14], `BEQ, 4, 5, -1)
-    m[15] = 0;
+
+    //---------- CHARLES C testing
+    `IPACK(m[15], `LB, 2, 1, 207)
+    `IPACK(m[16], `LB, 2, 1, 208)
+    `IPACK(m[17], `LB, 2, 1, 209)
+    `IPACK(m[18], `LB, 2, 1, 210)
+    `IPACK(m[19], `LBU, 2, 1, 207)
+    `IPACK(m[20], `LBU, 2, 1, 208)
+    `IPACK(m[21], `LBU, 2, 1, 209)
+    `IPACK(m[22], `LBU, 2, 1, 210)
+    // m[15] = 0;
+    m[23] = 0;
+    m[52] = 32'h1234abcd;
+    // Note:
+    // 0x12 = 0b00010010 = 18
+    // 0x34 = 0b00110100 = 52
+    // 0xab = 0b10101011 = 171 (unsigned) = -85 (signed)
+    // 0xcd = 0b11001101 = 205 (unsigned) = -51 (signed)
+    //----------
+
     m[256] = 22;
 end
 
 assign ir = m[pc >> 2];
 
 // Control output signals
-wire RegDst, Branch, MemRead, MemtoReg;
+wire RegDst, Branch;
+
 wire `OPCODE ALUop;
 wire ALUSrc, MemWrite, RegWrite;
 
 // Mux outputs
 wire `REG RegDstMux;
-wire `WORD ALUSrcMux, BranchZeroMux, MemtoRegMux;
+wire `WORD ALUSrcMux, BranchZeroMux;
+wire signed `WORD MemtoRegMux;  // CHARLES C: made this signed
+wire `WORD MemExtractedWord, MemExtractedByte;  // CHARLES C
+wire signed `WORD MemExtractedByteSignExtended;  // CHARLES C
 
 // Function unit wiring
 wire `WORD Shiftleft2, Signextend;
@@ -156,13 +183,22 @@ wire `WORD ALUresult;
 assign RegDst = (ir `OP == `RTYPE);
 assign ALUSrc = ((ir `OP != `RTYPE) && (ir `OP != `BEQ));
 assign ALUOp = (ir `OP);
-assign MemRead = (ir `OP == `LW);
-assign MemtoReg = (ir `OP == `LW);
+assign MemRead = (ir `OP == `LW);  // CHARLES C: not needed lol
+
 assign MemWrite = (ir `OP == `SW);
 assign RegWrite = ((ir `OP != `SW) && (ir `OP != `BEQ));
 assign RegDstMux = (RegDst ? ir `RD : ir `RT);
 assign ALUSrcMux = (ALUSrc ? Signextend : r[ir `RT]);
-assign MemtoRegMux = (MemtoReg ? m[ALUresult >> 2] : ALUresult);
+
+assign MemExtractedWord = m[ALUresult >> 2];
+assign MemExtractedByte = m[ALUresult >> 2][(8 * (ALUresult % 4)) +: 8];
+assign MemExtractedByteSignExtended = {{24{MemExtractedByte[7]}}, MemExtractedByte[7:0]};
+
+assign MemtoRegMux = (ir `OP == `LW)  ? MemExtractedWord :
+                     (ir `OP == `LBU) ? MemExtractedByte :
+                     (ir `OP == `LB)  ? MemExtractedByteSignExtended :
+                     ALUresult; // Default to ALU output
+
 assign Branch = ((ir `OP == `BEQ) || (ir `OP == `BNE)); // PAUL G, BNE
 assign BranchZeroMux = ((Branch & Zero) ? BranchAdd : PCAdd);
 
