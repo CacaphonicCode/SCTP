@@ -29,6 +29,7 @@
 // Instruction encoding
 `define	RTYPE	6'h00	// OP field for all RTYPE instructions
 `define BEQ	6'h04	// OP field
+`define BNE	6'h06	// OP field, PAUL G, BNE
 `define	ADDIU	6'h09	// OP field
 `define	SLTIU	6'h0b	// OP field
 `define	ANDI	6'h0c	// OP field
@@ -60,6 +61,7 @@ always @(ir) begin
 		  default:	xop = `TRAP;
 		endcase
     `BEQ,
+    `BNE, // PAUL G, BNE
     `ADDIU, `SLTIU,
     `ANDI, `ORI, `XORI,
     `LUI, `LW, `SW:	xop = ir `OP;
@@ -89,7 +91,7 @@ always @(xop or top or bot) begin
     `XORI, `F(`XOR):	res = (top ^ bot);
     `LUI:		res = (bot << 16);
     `BEQ, `F(`SUBU):	res = (top - bot);
-
+    `BNE, `F(`SUBU): res = !(top - bot); // PAUL G, BNE
     // should always cover all possible values
     default:	res = top;
   endcase
@@ -106,7 +108,7 @@ reg `WORD r `REGCNT;
 wire `INST ir;
 
 // Initialize register file and memory
-initial begin
+initial begin // PAUL G, Note : I believe this is just part of the test-bench and is not part of the actual implementations themselves
     r[1] = 22; r[2] = 1; r[3] = 42;
     r[4] = 601;	r[5] = 11811;
     `RPACK(m[0], 2, 3, 1, 0, `ADDU)
@@ -157,7 +159,7 @@ assign RegWrite = ((ir `OP != `SW) && (ir `OP != `BEQ));
 assign RegDstMux = (RegDst ? ir `RD : ir `RT);
 assign ALUSrcMux = (ALUSrc ? Signextend : r[ir `RT]);
 assign MemtoRegMux = (MemtoReg ? m[ALUresult >> 2] : ALUresult);
-assign Branch = (ir `OP == `BEQ);
+assign Branch = ((ir `OP == `BEQ) || (ir `OP == `BNE)); // PAUL G, BNE
 assign BranchZeroMux = ((Branch & Zero) ? BranchAdd : PCAdd);
 
 // Function units
