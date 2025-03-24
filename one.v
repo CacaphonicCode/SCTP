@@ -37,7 +37,9 @@
 `define	XORI	6'h0e	// OP field
 `define	LUI	6'h0f	// OP field
 `define	LW	6'h23	// OP field
-`define	SW	6'h2b	// OP field
+`define	SW	6'h2b	// OP field 
+
+`define	MUL	6'h01	// FUNCT field, PAUL G, MUL
 `define	ADDU	6'h21	// FUNCT field
 `define	SUBU	6'h23	// FUNCT field
 `define	AND	6'h24	// FUNCT field
@@ -55,7 +57,8 @@ input `INST ir;		// instruction
 always @(ir) begin
   case (ir `OP)
     `RTYPE:	case (ir `FUNCT)
-		  `ADDU, `SUBU,
+		  `MUL, // PAUL G, MUL
+      `ADDU, `SUBU,
 		  `AND, `OR, `XOR,
 		  `SLTU:	xop = `F(ir `FUNCT);
 		  default:	xop = `TRAP;
@@ -83,6 +86,7 @@ assign zero = (res == 0);
 // output declared as reg, but never use <=
 always @(xop or top or bot) begin
   case (xop)
+    `MUL: res = (top * bot); // PAUL G, MUL
     `LW, `SW,
     `ADDIU, `F(`ADDU):	res = (top + bot);
     `SLTIU, `F(`SLTU):	res = (top < bot);
