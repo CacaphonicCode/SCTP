@@ -89,7 +89,7 @@ assign zero = (res == 0);
 // output declared as reg, but never use <=
 always @(xop or top or bot) begin
   case (xop)
-    `MUL: res = (top * bot); // PAUL G, MUL
+    `F(`MUL): res = (top * bot); // PAUL G, MUL
     `LW, `SW,
     `LB, `LBU,  // CHARLES C
     `ADDIU, `F(`ADDU):	res = (top + bot);
